@@ -1,73 +1,136 @@
-function App() {
+import { useEffect, useMemo, useState } from "react";
+import Header from "./components/Header";
+import ProductCard from "./components/ProductCard";
+import CartDrawer from "./components/CartDrawer";
+
+const API_BASE = import.meta.env.VITE_BACKEND_URL || "";
+
+export default function App() {
+  const [products, setProducts] = useState([]);
+  const [query, setQuery] = useState("");
+  const [cartOpen, setCartOpen] = useState(false);
+  const [cart, setCart] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    async function fetchProducts() {
+      try {
+        setLoading(true);
+        const res = await fetch(`${API_BASE}/api/products`);
+        const data = await res.json();
+        setProducts(Array.isArray(data) ? data : []);
+      } catch (e) {
+        setError("Failed to load products.");
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchProducts();
+  }, []);
+
+  const filtered = useMemo(() => {
+    if (!query.trim()) return products;
+    const q = query.toLowerCase();
+    return products.filter((p) =>
+      [p.title, p.description, p.category, ...(p.tags || [])]
+        .filter(Boolean)
+        .some((v) => String(v).toLowerCase().includes(q))
+    );
+  }, [products, query]);
+
+  function addToCart(product) {
+    setCart((prev) => {
+      const existing = prev.find((p) => p.id === product.id);
+      if (existing) {
+        return prev.map((p) => (p.id === product.id ? { ...p, quantity: p.quantity + 1 } : p));
+      }
+      return [...prev, { ...product, quantity: 1 }];
+    });
+  }
+
+  function removeFromCart(item) {
+    setCart((prev) => prev.filter((p) => p.id !== item.id));
+  }
+
+  async function checkout() {
+    try {
+      const subtotal = cart.reduce((s, i) => s + i.price * i.quantity, 0);
+      const delivery_fee = subtotal > 100 ? 0 : 9.99;
+      const total = subtotal + delivery_fee;
+      const payload = {
+        items: cart.map((c) => ({
+          product_id: c.id,
+          title: c.title,
+          price: c.price,
+          quantity: c.quantity,
+          image_url: c.image_url || null,
+        })),
+        customer: {
+          name: "Guest",
+          email: "guest@example.com",
+          address_line1: "123 Flower St",
+          city: "Bloomtown",
+          state: "FL",
+          postal_code: "00000",
+        },
+        notes: "Web checkout",
+        subtotal,
+        delivery_fee,
+        total,
+      };
+      const res = await fetch(`${API_BASE}/api/orders`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setCart([]);
+        alert(`Order placed! ID: ${data.id}`);
+        setCartOpen(false);
+      } else {
+        alert(`Checkout failed: ${data.detail || "Unknown error"}`);
+      }
+    } catch (e) {
+      alert("Checkout failed. Please try again.");
+    }
+  }
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
-      {/* Subtle pattern overlay */}
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(59,130,246,0.05),transparent_50%)]"></div>
+    <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-white to-rose-50">
+      <Header cartCount={cart.length} query={query} setQuery={setQuery} onOpenCart={() => setCartOpen(true)} />
 
-      <div className="relative min-h-screen flex items-center justify-center p-8">
-        <div className="max-w-2xl w-full">
-          {/* Header with Flames icon */}
-          <div className="text-center mb-12">
-            <div className="inline-flex items-center justify-center mb-6">
-              <img
-                src="/flame-icon.svg"
-                alt="Flames"
-                className="w-24 h-24 drop-shadow-[0_0_25px_rgba(59,130,246,0.5)]"
-              />
-            </div>
+      <main className="max-w-6xl mx-auto px-4 py-8">
+        <section className="bg-gradient-to-r from-emerald-600 to-rose-500 text-white rounded-3xl p-8 md:p-12 shadow-lg">
+          <h1 className="text-3xl md:text-5xl font-bold tracking-tight">Fresh flowers, delivered with love</h1>
+          <p className="mt-3 text-white/90 max-w-2xl">Discover hand-crafted bouquets, lush houseplants, and thoughtful gifts for every occasion. Same‑day delivery available.</p>
+        </section>
 
-            <h1 className="text-5xl font-bold text-white mb-4 tracking-tight">
-              Flames Blue
-            </h1>
-
-            <p className="text-xl text-blue-200 mb-6">
-              Build applications through conversation
-            </p>
+        <section className="mt-10">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-xl font-semibold text-slate-800">Featured Products</h2>
+            {loading && <span className="text-sm text-slate-500">Loading...</span>}
+            {!loading && error && <span className="text-sm text-rose-600">{error}</span>}
           </div>
 
-          {/* Instructions */}
-          <div className="bg-slate-800/50 backdrop-blur-sm border border-blue-500/20 rounded-2xl p-8 shadow-xl mb-6">
-            <div className="flex items-start gap-4 mb-6">
-              <div className="flex-shrink-0 w-8 h-8 bg-blue-500 text-white rounded-lg flex items-center justify-center font-bold">
-                1
-              </div>
-              <div>
-                <h3 className="font-semibold text-white mb-1">Describe your idea</h3>
-                <p className="text-blue-200/80 text-sm">Use the chat panel on the left to tell the AI what you want to build</p>
-              </div>
+          {filtered.length === 0 && !loading ? (
+            <div className="text-center py-16 text-slate-500">No products found.</div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+              {filtered.map((p) => (
+                <ProductCard key={p.id} product={p} onAdd={addToCart} />
+              ))}
             </div>
+          )}
+        </section>
+      </main>
 
-            <div className="flex items-start gap-4 mb-6">
-              <div className="flex-shrink-0 w-8 h-8 bg-blue-500 text-white rounded-lg flex items-center justify-center font-bold">
-                2
-              </div>
-              <div>
-                <h3 className="font-semibold text-white mb-1">Watch it build</h3>
-                <p className="text-blue-200/80 text-sm">Your app will appear in this preview as the AI generates the code</p>
-              </div>
-            </div>
+      <CartDrawer open={cartOpen} onClose={() => setCartOpen(false)} cart={cart} onRemove={removeFromCart} onCheckout={checkout} />
 
-            <div className="flex items-start gap-4">
-              <div className="flex-shrink-0 w-8 h-8 bg-blue-500 text-white rounded-lg flex items-center justify-center font-bold">
-                3
-              </div>
-              <div>
-                <h3 className="font-semibold text-white mb-1">Refine and iterate</h3>
-                <p className="text-blue-200/80 text-sm">Continue the conversation to add features and make changes</p>
-              </div>
-            </div>
-          </div>
-
-          {/* Footer */}
-          <div className="text-center">
-            <p className="text-sm text-blue-300/60">
-              No coding required • Just describe what you want
-            </p>
-          </div>
-        </div>
-      </div>
+      <footer className="mt-16 py-10 text-center text-slate-500">
+        © {new Date().getFullYear()} Bloom Boutique. All rights reserved.
+      </footer>
     </div>
-  )
+  );
 }
-
-export default App
