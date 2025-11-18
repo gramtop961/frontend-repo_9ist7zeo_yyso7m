@@ -1,7 +1,11 @@
-import { useEffect, useMemo, useState } from "react";
-import Header from "./components/Header";
+import { useEffect, useMemo, useRef, useState } from "react";
+import ChenHeader from "./components/ChenHeader";
+import Hero from "./components/Hero";
+import Collections from "./components/Collections";
+import { HowItsMade, About, Reviews, FAQ } from "./components/Sections";
 import ProductCard from "./components/ProductCard";
 import CartDrawer from "./components/CartDrawer";
+import Footer from "./components/Footer";
 
 const API_BASE = import.meta.env.VITE_BACKEND_URL || "";
 
@@ -12,6 +16,8 @@ export default function App() {
   const [cart, setCart] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+
+  const gridRef = useRef(null);
 
   useEffect(() => {
     async function fetchProducts() {
@@ -56,7 +62,7 @@ export default function App() {
   async function checkout() {
     try {
       const subtotal = cart.reduce((s, i) => s + i.price * i.quantity, 0);
-      const delivery_fee = subtotal > 100 ? 0 : 9.99;
+      const delivery_fee = subtotal > 100 ? 0 : 6.99;
       const total = subtotal + delivery_fee;
       const payload = {
         items: cart.map((c) => ({
@@ -69,9 +75,9 @@ export default function App() {
         customer: {
           name: "Guest",
           email: "guest@example.com",
-          address_line1: "123 Flower St",
+          address_line1: "123 Paper Garden Way",
           city: "Bloomtown",
-          state: "FL",
+          state: "CA",
           postal_code: "00000",
         },
         notes: "Web checkout",
@@ -98,24 +104,23 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-white to-rose-50">
-      <Header cartCount={cart.length} query={query} setQuery={setQuery} onOpenCart={() => setCartOpen(true)} />
+    <div className="min-h-screen bg-gradient-to-br from-[#fff] via-[#f7f6f9] to-[#fff]">
+      <ChenHeader cartCount={cart.length} query={query} setQuery={setQuery} onOpenCart={() => setCartOpen(true)} />
 
       <main className="max-w-6xl mx-auto px-4 py-8">
-        <section className="bg-gradient-to-r from-emerald-600 to-rose-500 text-white rounded-3xl p-8 md:p-12 shadow-lg">
-          <h1 className="text-3xl md:text-5xl font-bold tracking-tight">Fresh flowers, delivered with love</h1>
-          <p className="mt-3 text-white/90 max-w-2xl">Discover hand-crafted bouquets, lush houseplants, and thoughtful gifts for every occasion. Same‑day delivery available.</p>
-        </section>
+        <Hero onPrimary={() => gridRef.current?.scrollIntoView({ behavior: 'smooth' })} onSecondary={() => window.location.hash = '#contact'} />
 
-        <section className="mt-10">
+        <Collections onSelect={(cat) => setQuery(cat)} />
+
+        <section className="mt-10" ref={gridRef}>
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl font-semibold text-slate-800">Featured Products</h2>
-            {loading && <span className="text-sm text-slate-500">Loading...</span>}
-            {!loading && error && <span className="text-sm text-rose-600">{error}</span>}
+            <h2 className="text-xl md:text-2xl font-semibold text-[#222222]">Bestsellers</h2>
+            {loading && <span className="text-sm text-[#4b4b4b]">Loading...</span>}
+            {!loading && error && <span className="text-sm text-[#ff4d4f]">{error}</span>}
           </div>
 
           {filtered.length === 0 && !loading ? (
-            <div className="text-center py-16 text-slate-500">No products found.</div>
+            <div className="text-center py-16 text-[#4b4b4b]">No products found.</div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
               {filtered.map((p) => (
@@ -124,13 +129,16 @@ export default function App() {
             </div>
           )}
         </section>
+
+        <HowItsMade />
+        <About />
+        <Reviews />
+        <FAQ />
       </main>
 
       <CartDrawer open={cartOpen} onClose={() => setCartOpen(false)} cart={cart} onRemove={removeFromCart} onCheckout={checkout} />
 
-      <footer className="mt-16 py-10 text-center text-slate-500">
-        © {new Date().getFullYear()} Bloom Boutique. All rights reserved.
-      </footer>
+      <Footer />
     </div>
   );
 }
